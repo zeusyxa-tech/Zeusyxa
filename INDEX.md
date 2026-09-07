@@ -39,7 +39,11 @@
 | [contracts/src-v1.1/AIAgentRegistry.sol](./contracts/src-v1.1/AIAgentRegistry.sol) | 224 | Agent identity + spending policy |
 | [contracts/src-v1.1/AIPaymentChannel.sol](./contracts/src-v1.1/AIPaymentChannel.sol) | 226 | x402 micropayments (EIP-712) |
 | [contracts/src-v1.1/AIModelMarketplace.sol](./contracts/src-v1.1/AIModelMarketplace.sol) | 231 | AI inference marketplace |
-| [bridge/QuantaBridgeHyperlane.sol](./bridge/QuantaBridgeHyperlane.sol) | 240 | Cross-chain bridge (Hyperlane) |
+
+### Experimental / Quarantined
+| File | Status |
+|------|--------|
+| [bridge/experimental/QuantaBridgeHyperlane.sol](./bridge/experimental/QuantaBridgeHyperlane.sol) | 🟥 Unaudited, known bug — DO NOT USE |
 
 ### Testing
 | Path | Purpose |
@@ -99,7 +103,7 @@
 | File | Purpose |
 |------|---------|
 | [bridge/README.md](./bridge/README.md) | Why Hyperlane + setup |
-| [bridge/QuantaBridgeHyperlane.sol](./bridge/QuantaBridgeHyperlane.sol) | Bridge contract |
+| [bridge/experimental/QuantaBridgeHyperlane.sol](./bridge/experimental/QuantaBridgeHyperlane.sol) | 🟥 Bridge contract — experimental, quarantined |
 
 ## 📱 Wallet UI (Demo)
 

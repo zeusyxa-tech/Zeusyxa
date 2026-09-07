@@ -1,5 +1,14 @@
 # 🌉 QUANTA Bridge — Hyperlane Implementation
 
+> **STATUS: 🟥 EXPERIMENTAL / QUARANTINED** — Unaudited, undeployed, KNOWN BUG (globalMinted underflow in `bridgeOut`). **DO NOT USE with real funds.**
+
+## ⚠️ Required before production use
+1. Fix accounting bug: `globalMinted -= amount` underflows when `globalMinted == 0`
+2. Full test coverage (unit + invariant + fuzz)
+3. External audit (bridge code + Hyperlane integration)
+
+---
+
 > **Decision**: We use **Hyperlane** (audited, battle-tested) instead of building custom signature verification. This eliminates the #1 source of bridge hacks ($3B+ lost 2021-2025).
 
 ## Why Hyperlane (not LayerZero/Wormhole/custom)
