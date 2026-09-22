@@ -212,4 +212,15 @@ mod tests {
             assert!(verify_dilithium_signature(m, &sig.0, &kp.public.0));
         }
     }
+
+    #[test]
+    fn test_keypair_uniqueness() {
+        // This test ensures real entropy is used (not stub returning zeros).
+        // With the old global getrandom stub, both keypairs would be identical
+        // because both would get all-zero seeds.
+        let a = generate_keypair();
+        let b = generate_keypair();
+        assert_ne!(a.public.0, b.public.0, "generate_keypair() must produce distinct public keys with real entropy");
+        assert_ne!(a.secret.0, b.secret.0, "generate_keypair() must produce distinct secret keys with real entropy");
+    }
 }

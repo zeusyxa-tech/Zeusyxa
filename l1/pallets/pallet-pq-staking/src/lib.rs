@@ -1,3 +1,16 @@
+// ⚠️ NON-FUNCTIONAL SCAFFOLD: no fund locking, no proof verification, no payouts.
+// DO NOT present as working PoUW.
+//
+// This pallet is a RESEARCH SKETCH only. Critical missing pieces:
+// - stake() does NOT transfer/lock funds (no Currency trait, no balance hold)
+// - submit_inference() does NOT verify ZK/proof-of-work (model_hash/input_hash ignored)
+// - claim_reward() does NOT transfer tokens (PendingRewards just cleared to 0)
+// - No slashing, no commission, no era/session logic, no inflation config
+// - Tests use mock runtime; NOT tested against real chain.
+//
+// Rewrite required for production: add Currency trait, proof verification,
+// actual payout logic, and full economic model.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame::prelude::*;

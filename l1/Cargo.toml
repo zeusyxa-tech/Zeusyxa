@@ -27,5 +27,7 @@ serde_json = { version = "1", default-features = false, features = ["alloc"] }
 substrate-prometheus-endpoint = { path = "./stubs/substrate-prometheus-endpoint" }
 sc-network = { path = "./stubs/sc-network" }
 
-[patch.crates-io]
-getrandom = { path = "./stubs/getrandom-03" }
+# getrandom stub ONLY for wasm32 — native uses real getrandom with entropy
+# (wasm32 target currently commented out in crypto/Cargo.toml; re-enable when needed)
+# [patch.crates-io]
+# getrandom = { path = "./stubs/getrandom-03" }

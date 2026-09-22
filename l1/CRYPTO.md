@@ -1,7 +1,7 @@
 # Dilithium Integration Plan
 
 ## Thư viện
-- qp-dilithium-crypto v0.1: Dilithium cho Substrate (no_std)
+- zeusyxa-l1-crypto: Dilithium cho Substrate (no_std)
 - pqc-combo v0.1: Kyber KEM + Dilithium + FIPS
 - sp-core: Substrate core traits
 

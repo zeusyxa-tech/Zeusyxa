@@ -1,8 +1,8 @@
-# QuantumResist Chain Spec
+# ZEUSYXA Chain Spec
 
-**Tên coin:** QR (QuantumResist)
-**Chain ID:** quantum_resist_2026
-**Genesis supply:** 1,000,000,000 QR
+**Tên coin:** ZYX (ZEUSYXA)
+**Chain ID:** zeusyxa_2026
+**Genesis supply:** 1,000,000,000 ZYX
 **Decimals:** 18
 
 ## Key Parameters
@@ -14,4 +14,4 @@
 | Signature size | ~2,309 bytes |
 | Consensus | Aura + GRANDPA |
 | Max block size | 10 MB |
-| Existential deposit | 100 QR |
+| Existential deposit | 100 ZYX |
