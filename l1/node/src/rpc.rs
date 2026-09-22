@@ -3,10 +3,10 @@
 //! JSON-RPC server using jsonrpsee for Substrate-compatible endpoints.
 
 use std::sync::Arc;
+use parking_lot::Mutex;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
 
 use crate::storage::DevStorage;
 
@@ -31,12 +31,11 @@ pub struct BlockHeader {
 }
 
 // ---------------------------------------------------------------------------
-// JSON-RPC trait definition (jsonrpsee generates `NodeRpcApiServer` trait)
+// JSON-RPC trait definition
 // ---------------------------------------------------------------------------
 
 #[rpc(server)]
 pub trait NodeRpcApi {
-    /// System methods
     #[method(name = "system_name")]
     fn system_name(&self) -> RpcResult<String>;
 
@@ -46,18 +45,15 @@ pub trait NodeRpcApi {
     #[method(name = "system_health")]
     fn system_health(&self) -> RpcResult<Health>;
 
-    /// Chain methods
     #[method(name = "chain_getBlockNumber")]
     fn chain_get_block_number(&self) -> RpcResult<u32>;
 
     #[method(name = "chain_getHeader")]
     fn chain_get_header(&self, hash: Option<String>) -> RpcResult<BlockHeader>;
 
-    /// State methods
     #[method(name = "state_getStorage")]
     fn state_get_storage(&self, key: String, hash: Option<String>) -> RpcResult<Option<String>>;
 
-    /// Engine methods (manual seal)
     #[method(name = "engine_createBlock")]
     fn engine_create_block(&self) -> RpcResult<bool>;
 }
@@ -67,11 +63,11 @@ pub trait NodeRpcApi {
 // ---------------------------------------------------------------------------
 
 pub struct NodeRpcImpl {
-    pub storage: Arc<RwLock<DevStorage>>,
+    pub storage: Arc<Mutex<DevStorage>>,
 }
 
 impl NodeRpcImpl {
-    pub fn new(storage: Arc<RwLock<DevStorage>>) -> Self {
+    pub fn new(storage: Arc<Mutex<DevStorage>>) -> Self {
         Self { storage }
     }
 }
@@ -94,105 +90,81 @@ impl NodeRpcApiServer for NodeRpcImpl {
     }
 
     fn chain_get_block_number(&self) -> RpcResult<u32> {
-        let rt = tokio::runtime::Handle::current();
-        let storage = self.storage.clone();
-        let val = rt.block_on(async move {
-            let s = storage.read().await;
+        let s = self.storage.lock();
+        let key = b"SystemNumber".to_vec();
+        Ok(s.get(&key)
+            .map(|v| u32::from_le_bytes(v.as_slice().try_into().unwrap_or([0; 4])))
+            .unwrap_or(0))
+    }
+
+    fn chain_get_header(&self, hash: Option<String>) -> RpcResult<BlockHeader> {
+        let _ = hash;
+        let s = self.storage.lock();
+
+        let block_number = {
             let key = b"SystemNumber".to_vec();
             s.get(&key)
                 .map(|v| u32::from_le_bytes(v.as_slice().try_into().unwrap_or([0; 4])))
                 .unwrap_or(0)
-        });
-        Ok(val)
-    }
+        };
 
-    fn chain_get_header(&self, hash: Option<String>) -> RpcResult<BlockHeader> {
-        let rt = tokio::runtime::Handle::current();
-        let storage = self.storage.clone();
-        let val = rt.block_on(async move {
-            let s = storage.read().await;
+        let parent_hash_key = format!("HeaderParent{}", block_number);
+        let parent_hash = s
+            .get(parent_hash_key.as_bytes())
+            .map(|v| hex::encode(v))
+            .unwrap_or_else(|| "0x".repeat(64));
 
-            // Determine block number (for now only "latest")
-            let block_number = {
-                let key = b"SystemNumber".to_vec();
-                s.get(&key)
-                    .map(|v| u32::from_le_bytes(v.as_slice().try_into().unwrap_or([0; 4])))
-                    .unwrap_or(0)
-            };
+        let state_root_key = format!("HeaderState{}", block_number);
+        let state_root = s
+            .get(state_root_key.as_bytes())
+            .map(|v| hex::encode(v))
+            .unwrap_or_else(|| "0x".repeat(64));
 
-            // If a specific hash was given and it's not "latest", decode it
-            let _ = hash;
+        let ext_root_key = format!("HeaderExt{}", block_number);
+        let ext_root = s
+            .get(ext_root_key.as_bytes())
+            .map(|v| hex::encode(v))
+            .unwrap_or_else(|| "0x".repeat(64));
 
-            let parent_hash_key = format!("HeaderParent{}", block_number).into_bytes();
-            let parent_hash = s
-                .get(&parent_hash_key)
-                .map(|v| hex_encode(v))
-                .unwrap_or_else(|| "0x".repeat(64));
-
-            let state_root_key = format!("HeaderState{}", block_number).into_bytes();
-            let state_root = s
-                .get(&state_root_key)
-                .map(|v| hex_encode(v))
-                .unwrap_or_else(|| "0x".repeat(64));
-
-            let ext_root_key = format!("HeaderExt{}", block_number).into_bytes();
-            let ext_root = s
-                .get(&ext_root_key)
-                .map(|v| hex_encode(v))
-                .unwrap_or_else(|| "0x".repeat(64));
-
-            BlockHeader {
-                number: block_number,
-                parent_hash,
-                state_root,
-                extrinsics_root: ext_root,
-                digest: vec![],
-            }
-        });
-        Ok(val)
+        Ok(BlockHeader {
+            number: block_number,
+            parent_hash,
+            state_root,
+            extrinsics_root: ext_root,
+            digest: vec![],
+        })
     }
 
     fn state_get_storage(&self, key: String, _hash: Option<String>) -> RpcResult<Option<String>> {
         let key_bytes = hex_decode(&key);
-        let rt = tokio::runtime::Handle::current();
-        let storage = self.storage.clone();
-        let val = rt.block_on(async move {
-            let s = storage.read().await;
-            s.get(&key_bytes).map(|v| hex_encode(v))
-        });
-        Ok(val)
+        let s = self.storage.lock();
+        Ok(s.get(&key_bytes).map(|v| hex::encode(v)))
     }
 
     fn engine_create_block(&self) -> RpcResult<bool> {
-        let rt = tokio::runtime::Handle::current();
-        let storage = self.storage.clone();
-        rt.block_on(async move {
-            let mut s = storage.write().await;
+        let mut s = self.storage.lock();
 
-            // Increment block number
-            let num_key = b"SystemNumber".to_vec();
-            let current = s
-                .get(&num_key)
-                .map(|v| u32::from_le_bytes(v.as_slice().try_into().unwrap_or([0u8; 4])))
-                .unwrap_or(0);
-            let new_number = current + 1;
-            s.insert(num_key, new_number.to_le_bytes().to_vec());
+        let num_key = b"SystemNumber".to_vec();
+        let current = s
+            .get(&num_key)
+            .map(|v| u32::from_le_bytes(v.as_slice().try_into().unwrap_or([0u8; 4])))
+            .unwrap_or(0);
+        let new_number = current + 1;
+        s.insert(num_key, new_number.to_le_bytes().to_vec());
 
-            // Store simple block header metadata
-            let parent_key = format!("HeaderParent{}", new_number).into_bytes();
-            let parent_hash = format!("{:064x}", current);
-            s.insert(parent_key, hex_decode(&parent_hash));
+        let parent_key = format!("HeaderParent{}", new_number);
+        let parent_hash = format!("{:064x}", current);
+        s.insert(parent_key.as_bytes().to_vec(), hex_decode(&parent_hash));
 
-            let state_key = format!("HeaderState{}", new_number).into_bytes();
-            let state_root = format!("{:064x}", new_number);
-            s.insert(state_key, hex_decode(&state_root));
+        let state_key = format!("HeaderState{}", new_number);
+        let state_root = format!("{:064x}", new_number);
+        s.insert(state_key.as_bytes().to_vec(), hex_decode(&state_root));
 
-            let ext_key = format!("HeaderExt{}", new_number).into_bytes();
-            let ext_root = format!("{:064x}", 0u32);
-            s.insert(ext_key, hex_decode(&ext_root));
+        let ext_key = format!("HeaderExt{}", new_number);
+        let ext_root = format!("{:064x}", 0u32);
+        s.insert(ext_key.as_bytes().to_vec(), hex_decode(&ext_root));
 
-            Ok(true)
-        })
+        Ok(true)
     }
 }
 
@@ -210,10 +182,9 @@ fn hex_decode(s: &str) -> Vec<u8> {
 }
 
 // ---------------------------------------------------------------------------
-// Backward-compatible types (used by existing tests in main.rs)
+// Backward-compatible types
 // ---------------------------------------------------------------------------
 
-/// Node information response
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct NodeInfo {
@@ -237,22 +208,18 @@ impl NodeInfo {
     }
 }
 
-/// Non-async RPC server handle (backward-compatible with existing tests)
 #[allow(dead_code)]
 pub struct NodeRpcServer;
 
-#[allow(dead_code)]
 impl NodeRpcServer {
     pub fn new() -> Self {
         Self
     }
 
-    /// Get node system info
     pub fn system_info(&self) -> NodeInfo {
         NodeInfo::new()
     }
 
-    /// Get system health
     pub fn system_health(&self) -> Health {
         Health {
             is_syncing: false,
@@ -261,12 +228,10 @@ impl NodeRpcServer {
         }
     }
 
-    /// Get the current block number (always 0 for non-async convenience)
     pub fn block_number(&self) -> u32 {
         0
     }
 
-    /// Get chain name
     pub fn chain(&self) -> String {
         quanta_l1_runtime::VERSION.spec_name.to_string()
     }
@@ -310,21 +275,21 @@ mod tests {
 
     #[test]
     fn rpc_impl_system_name() {
-        let storage = Arc::new(RwLock::new(DevStorage::new()));
+        let storage = Arc::new(Mutex::new(DevStorage::new()));
         let rpc = NodeRpcImpl::new(storage);
         assert_eq!(rpc.system_name().unwrap(), "quanta-l1");
     }
 
     #[test]
     fn rpc_impl_system_version() {
-        let storage = Arc::new(RwLock::new(DevStorage::new()));
+        let storage = Arc::new(Mutex::new(DevStorage::new()));
         let rpc = NodeRpcImpl::new(storage);
         assert_eq!(rpc.system_version().unwrap(), "0.1.0");
     }
 
     #[test]
     fn rpc_impl_system_health() {
-        let storage = Arc::new(RwLock::new(DevStorage::new()));
+        let storage = Arc::new(Mutex::new(DevStorage::new()));
         let rpc = NodeRpcImpl::new(storage);
         let h = rpc.system_health().unwrap();
         assert!(!h.is_syncing);
@@ -334,18 +299,14 @@ mod tests {
 
     #[test]
     fn rpc_impl_block_number_starts_at_zero() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let _guard = rt.enter();
-        let storage = Arc::new(RwLock::new(DevStorage::new()));
+        let storage = Arc::new(Mutex::new(DevStorage::new()));
         let rpc = NodeRpcImpl::new(storage);
         assert_eq!(rpc.chain_get_block_number().unwrap(), 0);
     }
 
     #[test]
     fn rpc_impl_engine_create_block() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let _guard = rt.enter();
-        let storage = Arc::new(RwLock::new(DevStorage::new()));
+        let storage = Arc::new(Mutex::new(DevStorage::new()));
         let rpc = NodeRpcImpl::new(storage);
         assert!(rpc.engine_create_block().unwrap());
         assert_eq!(rpc.chain_get_block_number().unwrap(), 1);
@@ -355,9 +316,7 @@ mod tests {
 
     #[test]
     fn rpc_impl_get_header() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let _guard = rt.enter();
-        let storage = Arc::new(RwLock::new(DevStorage::new()));
+        let storage = Arc::new(Mutex::new(DevStorage::new()));
         let rpc = NodeRpcImpl::new(storage);
         rpc.engine_create_block().unwrap();
         let header = rpc.chain_get_header(None).unwrap();
@@ -367,13 +326,10 @@ mod tests {
 
     #[test]
     fn rpc_impl_state_get_storage() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let _guard = rt.enter();
         let mut storage_inner = DevStorage::new();
         storage_inner.insert(b"TestKey".to_vec(), b"TestValue".to_vec());
-        let storage = Arc::new(RwLock::new(storage_inner));
+        let storage = Arc::new(Mutex::new(storage_inner));
         let rpc = NodeRpcImpl::new(storage);
-        // "TestKey" in hex = 0x546573744b6579
         let result = rpc
             .state_get_storage("0x546573744b6579".to_string(), None)
             .unwrap();

@@ -10,8 +10,8 @@
 
 use quanta_l1_runtime::{Runtime, VERSION};
 use std::sync::Arc;
+use parking_lot::Mutex;
 use std::time::SystemTime;
-use tokio::sync::RwLock;
 
 mod rpc;
 mod storage;
@@ -23,79 +23,64 @@ use storage::DevStorage;
 async fn main() {
     let start_time = SystemTime::now();
 
-    println!("╔══════════════════════════════════════════════════╗");
+    println!("══════════════════════════════════════════════════");
     println!("║  QUANTA L1 — Quantum-safe AI-native Blockchain  ║");
-    println!("╚══════════════════════════════════════════════════╝");
-    println!();
-    println!("Spec name:      {}", VERSION.spec_name);
-    println!("Impl name:      {}", VERSION.impl_name);
-    println!("Spec version:   {}", VERSION.spec_version);
-    println!("Impl version:   {}", VERSION.impl_version);
-    println!("Native runtime: quanta-l1-runtime");
-    println!("WASM runtime:   supported (with getrandom stub)");
-    println!();
-    println!("Pallets:");
-    println!("  ✓ frame-system");
-    println!("  ✓ pallet-balances (dev)");
-    println!("  ✓ pallet-pq-dilithium  (Dilithium3 PQ signatures)");
-    println!("  ✓ pallet-pq-balances   (PQ balance management)");
-    println!("  ✓ pallet-pq-staking    (PoUW inference staking)");
-    println!();
-    println!("Crypto: Dilithium3 (ML-DSA-65) — NIST Level 3");
-    println!("  Public key:  1,952 bytes");
-    println!("  Signature:   3,309 bytes");
-    println!("  Secret key:  4,032 bytes");
-    println!();
-    println!("Consensus: Manual Seal (dev mode)");
-    println!("Block time:  6 seconds");
-    println!();
+    eprintln!("╚══════════════════════════════════════════════════╝");
+    eprintln!();
+    eprintln!("Spec name:      {}", VERSION.spec_name);
+    eprintln!("Impl name:      {}", VERSION.impl_name);
+    eprintln!("Spec version:   {}", VERSION.spec_version);
+    eprintln!("Impl version:   {}", VERSION.impl_version);
+    eprintln!("Native runtime: quanta-l1-runtime");
+    eprintln!("WASM runtime:   supported");
+    eprintln!();
+    eprintln!("Pallets:");
+    eprintln!("  ✓ frame-system");
+    eprintln!("  ✓ pallet-balances (dev)");
+    eprintln!("  ✓ pallet-pq-dilithium  (Dilithium3 PQ signatures)");
+    eprintln!("  ✓ pallet-pq-balances   (PQ balance management)");
+    eprintln!("  ✓ pallet-pq-staking    (PoUW inference staking)");
+    eprintln!();
+    eprintln!("Crypto: Dilithium3 (ML-DSA-65) — NIST Level 3");
+    eprintln!("  Public key:  1,952 bytes");
+    eprintln!("  Signature:   3,309 bytes");
+    eprintln!("  Secret key:  4,032 bytes");
+    eprintln!();
+    eprintln!("Consensus: Manual Seal (dev mode)");
+    eprintln!("Block time:  6 seconds");
+    eprintln!();
 
-    // Initialize dev storage
-    let storage = Arc::new(RwLock::new(DevStorage::new()));
+    let storage = Arc::new(Mutex::new(DevStorage::new()));
     {
-        let s = storage.read().await;
-        println!("Genesis storage: {} top-level entries", s.top_count());
+        let s = storage.lock();
+        eprintln!("Genesis storage: {} top-level entries", s.top_count());
     }
-    println!();
+    eprintln!();
 
-    // Print node info
     let _runtime_type = std::any::type_name::<Runtime>();
-    println!("✓ Runtime: {}", _runtime_type);
-    println!(
-        "✓ Version: spec={} impl={}",
-        VERSION.spec_version, VERSION.impl_version
-    );
-    println!("✓ WASM: supported");
-    println!();
+    eprintln!("✓ Runtime: {}", _runtime_type);
+    eprintln!("✓ Version: spec={} impl={}", VERSION.spec_version, VERSION.impl_version);
+    eprintln!("✓ WASM: supported");
+    eprintln!();
 
-    // Build the RPC implementation
     let rpc_impl = NodeRpcImpl::new(storage.clone());
 
-    // Start JSON-RPC server on 0.0.0.0:9944
     let rpc_addr = "0.0.0.0:9944".parse::<std::net::SocketAddr>().unwrap();
     let builder = jsonrpsee::server::ServerBuilder::default();
     let server = builder.build(rpc_addr).await.unwrap();
     let handle = server.start(rpc_impl.into_rpc());
 
     let elapsed = SystemTime::now().duration_since(start_time).unwrap();
-    println!(
-        "QUANTA L1 Node started in {:.2}s",
-        elapsed.as_secs_f64()
-    );
-    println!("JSON-RPC server listening on ws://{}", rpc_addr);
-    println!("HTTP endpoint available at http://{}", rpc_addr);
-    println!("Press Ctrl+C to exit.");
+    eprintln!("QUANTA L1 Node started in {:.2}s", elapsed.as_secs_f64());
+    eprintln!("JSON-RPC server listening on ws://{}", rpc_addr);
+    eprintln!("HTTP endpoint available at http://{}", rpc_addr);
+    eprintln!("Press Ctrl+C to exit.");
 
-    // Block forever (server runs in background)
     tokio::signal::ctrl_c().await.unwrap();
-    println!("\nShutting down...");
+    eprintln!("\nShutting down...");
     handle.stop().unwrap();
     handle.stopped().await;
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
